@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <title>生活助手 Pro</title>
+    <style>
+        :root {
+            --bg: #F2F2F7;
+            --card: #FFFFFF;
+            --primary: #007AFF;
+            --text: #1C1C1E;
+            --gray: #8E8E93;
+            --danger: #FF3B30;
+            --success: #34C759;
+            --pomodoro: #FF5A5F;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: env(safe-area-inset-top) 0 calc(80px + env(safe-area-inset-bottom)) 0;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        /* 頂部標題與通知按鈕 */
+        .header { position: relative; text-align: center; margin: 20px 0; }
+        h1 { font-size: 28px; margin: 0; font-weight: 700; }
+        .notify-btn { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 22px; cursor: pointer; padding: 5px; }
+
+        /* 底部導覽列 */
+        .tab-bar {
+            position: fixed; bottom: 0; width: 100%; height: calc(65px + env(safe-area-inset-bottom));
+            background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); display: flex; justify-content: space-around;
+            align-items: center; border-top: 0.5px solid #D1D1D6; padding-bottom: env(safe-area-inset-bottom); z-index: 1000;
+        }
+        .tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; color: var(--gray); font-size: 11px; font-weight: 500; cursor: pointer; }
+        .tab-item.active { color: var(--primary); }
+        .tab-icon { font-size: 22px; margin-bottom: 2px; }
+
+        /* 分頁切換 */
+        .page { display: none; padding: 0 15px; }
+        .page.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* 通用卡片與按鈕樣式 */
+        .card { background: var(--card); padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 5px 0; border: 1px solid #E5E5EA; border-radius: 8px; font-size: 16px; box-sizing: border-box; outline: none; }
+        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
+        button { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .primary-btn { background: var(--primary); color: white; }
+        .cancel-btn { background: #E5E5EA; color: var(--text); display: none; }
+
+        /* 清單樣式 */
+        .section-title { font-size: 13px; color: var(--gray); text-transform: uppercase; margin: 15px 5px 8px 5px; font-weight: 600; }
+        .list-container { background: var(--card); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+        .item { display: flex; align-items: center; padding: 15px; border-bottom: 0.5px solid #E5E5EA; }
+        .item:last-child { border-bottom: none; }
+        .checkbox { width: 22px; height: 22px; border: 2px solid #C7C7CC; border-radius: 50%; margin-right: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .checkbox.checked { background: var(--success); border-color: var(--success); }
+        .checkbox.checked::after { content: '✓'; color: white; font-size: 14px; }
+        .item-info { flex-grow: 1; }
+        .item-text { font-size: 17px; }
+        .item.completed .item-text { color: var(--gray); text-decoration: line-through; }
+        .item-sub { font-size: 12px; color: var(--gray); margin-top: 2px; }
+        .action-btns { display: flex; gap: 15px; margin-left: 10px; color: var(--gray); font-size: 18px; }
+
+        /* 蕃茄鐘專屬樣式 */
+        .timer-display { font-size: 70px; font-weight: 200; text-align: center; margin: 30px 0; font-variant-numeric: tabular-nums; color: var(--pomodoro); }
+        .timer-status { text-align: center; font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+        .timer-settings { display: flex; gap: 15px; margin-top: 20px; }
+        .setting-field { flex: 1; text-align: center; }
+        .setting-field label { font-size: 12px; color: var(--gray); display: block; margin-bottom: 5px; }
+        .pomodoro-btn { background: var(--pomodoro); color: white; }
+        .stop-btn { background: #8E8E93; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>生活助手 Pro</h1>
+        <button class="notify-btn" onclick="requestNotification()" id="bellBtn">🔔</button>
+    </div>
+
+    <!-- 底部導覽 -->
+    <div class="tab-bar">
+        <div class="tab-item active" onclick="showPage('todo')"><span class="tab-icon">📅</span><span>事項</span></div>
+        <div class="tab-item" onclick="showPage('pomodoro')"><span class="tab-icon">🍅</span><span>蕃茄鐘</span></div>
+        <div class="tab-item" onclick="showPage('bucket')"><span class="tab-icon">🌟</span><span>人生清單</span></div>
+        <div class="tab-item" onclick="showPage('settings')"><span class="tab-icon">⚙️</span><span>同步</span></div>
+    </div>
+
+    <!-- 1. 待辦事項頁面 -->
+    <div id="page-todo" class="page active">
+        <div class="card">
+            <input type="text" id="todoInput" placeholder="想做什麼？" autocomplete="off">
+            <input type="date" id="todoDate">
+            <div class="btn-group">
+                <button id="todoSaveBtn" class="primary-btn" onclick="handleTodoSave()">新增</button>
+                <button id="todoCancelBtn" class="cancel-btn" onclick="cancelTodoEdit()">取消</button>
+            </div>
+        </div>
+        <div id="todo-lists-render"></div>
+    </div>
+
+    <!-- 2. 蕃茄鐘頁面 -->
+    <div id="page-pomodoro" class="page">
+        <div class="card">
+            <div id="pomoStatus" class="timer-status">準備專注</div>
+            <div id="timerDisplay" class="timer-display">25:00</div>
+            <div class="btn-group">
+                <button id="pomoStartBtn" class="pomodoro-btn" onclick="toggleTimer()">開始專注</button>
+                <button class="stop-btn" onclick="resetTimer()">結束 / 重置</button>
+            </div>
+            <div class="timer-settings">
+                <div class="setting-field"><label>專注 (分)</label><input type="number" id="workTimeInput" value="25" min="1"></div>
+                <div class="setting-field"><label>休息 (分)</label><input type="number" id="freeTimeInput" value="5" min="1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 人生清單頁面 -->
+    <div id="page-bucket" class="page">
+        <div class="card">
+            <input type="text" id="bucketInput" placeholder="這輩子一定要做的..." autocomplete="off">
+            <div class="btn-group">
+                <button id="bucketSaveBtn" class="primary-btn" onclick="handleBucketSave()">紀錄夢想</button>
+                <button id="bucketCancelBtn" class="cancel-btn" onclick="cancelBucketEdit()">取消</button>
+            </div>
+        </div>
+        <div class="section-title">我的清單</div>
+        <div id="bucket-list-render" class="list-container"></div>
+    </div>
+
+    <!-- 4. 同步設定頁面 -->
+    <div id="page-settings" class="page">
+        <div class="card">
+            <h2 style="margin-top:0; font-size: 18px;">☁️ 跨裝置雲端同步</h2>
+            <p style="font-size: 14px; color: var(--gray); line-height: 1.5;">為了資料安全，請將您的專屬金鑰填入下方。設定後，所有變更將自動在背景無縫同步到雲端。</p>
+            
+            <label style="font-size: 13px; font-weight: bold;">Bin ID</label>
+            <input type="text" id="binIdInput" placeholder="例如: 66141a02..." autocomplete="off">
+            
+            <label style="font-size: 13px; font-weight: bold; margin-top: 10px; display: block;">API Key (Master Key)</label>
+            <input type="password" id="apiKeyInput" placeholder="例如: $2a$10$..." autocomplete="off">
+            
+            <button class="primary-btn" style="margin-top: 15px; width: 100%;" onclick="saveSyncConfig()">連線並同步</button>
+            
+            <div id="syncStatus" style="text-align: center; margin-top: 15px; font-size: 14px; font-weight: bold; color: var(--primary);"></div>
+        </div>
+
+        <div class="card" style="font-size: 13px; color: var(--gray); line-height: 1.6;">
+            <strong>💡 如何免費取得金鑰？（只需做一次）</strong><br><br>
+            1. 前往 <a href="https://jsonbin.io" target="_blank" style="color: var(--primary);">jsonbin.io</a> 並使用 Google 登入。<br>
+            2. 點擊「CREATE BIN」，在畫面大框框內貼上這行字：<br>
+               <code style="background:#F2F2F7; padding:4px; border-radius:4px; display:block; margin:5px 0;">{"tasks":[], "bucket":[]}</code>
+            3. 點擊綠色的 Create 儲存。<br>
+            4. 在你的網址列或是畫面上複製這串資料夾的 <b>Bin ID</b>。<br>
+            5. 打開左側選單進入「API Keys」，複製你的 <b>Master Key</b>。<br>
+            6. 將這兩串文字貼回上方的設定框並點擊連線！
+        </div>
+    </div>
+
+    <script>
+        // --- 頁面切換 ---
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            document.getElementById('page-' + pageId).classList.add('active');
+            event.currentTarget.classList.add('active');
+            if(pageId === 'settings') loadSyncConfigUI();
+        }
+
+        // --- ☁️ 雲端同步邏輯 (JSONBin) ---
+        let syncConfig = JSON.parse(localStorage.getItem('sync_config')) || { binId: '', apiKey: '' };
+
+        function loadSyncConfigUI() {
+            document.getElementById('binIdInput').value = syncConfig.binId || '';
+            document.getElementById('apiKeyInput').value = syncConfig.apiKey || '';
+        }
+
+        function saveSyncConfig() {
+            const binId = document.getElementById('binIdInput').value.trim();
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+            syncConfig = { binId, apiKey };
+            localStorage.setItem('sync_config', JSON.stringify(syncConfig));
+            if(binId && apiKey) fetchFromCloud();
+            else alert('已清除設定，資料將只保存在這台裝置。');
+        }
+
+        async function syncToCloud() {
+            if (!syncConfig.binId || !syncConfig.apiKey) return;
+            const statusEl = document.getElementById('syncStatus');
+            if(statusEl) statusEl.innerText = '⏳ 正在同步...';
+            try {
+                await fetch(`https://api.jsonbin.io/v3/b/${syncConfig.binId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': syncConfig.apiKey },
+                    body: JSON.stringify({ tasks, bucket })
+                });
+                if(statusEl) {
+                    statusEl.innerText = '✅ 雲端同步完成';
+                    setTimeout(() => statusEl.innerText = '', 3000);
+                }
+            } catch (e) {
+                if(statusEl) statusEl.innerText = '❌ 同步失敗，請檢查網路或金鑰';
+            }
+        }
+
+async function syncToCloud() {
+            if (!syncConfig.binId || !syncConfig.apiKey) return;
+            const statusEl = document.getElementById('syncStatus');
+            try {
+                const res = await fetch(`https://api.jsonbin.io/v3/b/${syncConfig.binId}`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'X-Master-Key': syncConfig.apiKey,
+                        'X-Bin-Versioning': 'false' // 避免產生無限多個版本
+                    },
+                    body: JSON.stringify({ tasks, bucket })
+                });
+                
+                if (!res.ok) {
+                    alert('⚠️ 雲端同步失敗！請檢查您的 API Key (Master Key) 是否填寫正確！');
+                    if(statusEl) statusEl.innerText = '❌ 同步失敗：請檢查 API Key';
+                } else {
+                    if(statusEl) {
+                        statusEl.innerText = '✅ 雲端同步完成';
+                        setTimeout(() => statusEl.innerText = '', 3000);
+                    }
+                }
+            } catch (e) {
+                alert('⚠️ 雲端同步失敗！請檢查網路連線。');
+                if(statusEl) statusEl.innerText = '❌ 同步失敗：網路異常';
+            }
+        }
+
+        // --- 通知與排程邏輯 ---
+        function requestNotification() {
+            if (!("Notification" in window)) return alert("您的瀏覽器不支援通知功能");
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    alert("通知已啟用！");
+                    document.getElementById('bellBtn').style.opacity = '0.3';
+                } else alert("通知已被拒絕。");
+            });
+        }
+        if ("Notification" in window && Notification.permission === "granted") document.getElementById('bellBtn').style.opacity = '0.3';
+
+        function sendNotification(title, body) {
+            if (Notification.permission === "granted") {
+                new Notification(title, { body: body, icon: "📅" });
+                if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            }
+        }
+
+        function checkSchedule() {
+            const now = new Date(); const hours = now.getHours(); const minutes = now.getMinutes(); const dateStr = now.toDateString();
+            const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+            const todayTasks = tasks.filter(t => { const d = new Date(t.date); d.setHours(0,0,0,0); return d.getTime() === todayStart.getTime(); });
+
+            if (hours === 8 && minutes === 30) {
+                const morningKey = 'morning_notified_' + dateStr;
+                if (!localStorage.getItem(morningKey)) {
+                    if (todayTasks.length > 0) {
+                        const taskNames = todayTasks.map(t => t.content).join("、");
+                        sendNotification("早安！今日代辦事項", `今天有 ${todayTasks.length} 件事情：${taskNames}`);
+                    }
+                    localStorage.setItem(morningKey, 'true');
+                }
+            }
+            if (hours === 22 && minutes === 30) {
+                const nightKey = 'night_notified_' + dateStr;
+                if (!localStorage.getItem(nightKey)) {
+                    const undone = todayTasks.filter(t => !t.completed).concat(tasks.filter(t => { const d = new Date(t.date); d.setHours(0,0,0,0); return !t.completed && d < todayStart; }));
+                    if (undone.length > 0) sendNotification("夜間提醒", `您還有 ${undone.length} 件任務未完成：${undone.map(t=>t.content).join("、")}`);
+                    else sendNotification("晚安！", "太棒了！今天的所有代辦事項都已完成！");
+                    localStorage.setItem(nightKey, 'true');
+                }
+            }
+        }
+        setInterval(checkSchedule, 60000);
+
+        // --- 1. 待辦事項邏輯 ---
+        let tasks = JSON.parse(localStorage.getItem('tasks_v4')) || [];
+        let todoEditingId = null;
+        document.getElementById('todoDate').valueAsDate = new Date();
+
+        function handleTodoSave() {
+            const content = document.getElementById('todoInput').value;
+            const date = document.getElementById('todoDate').value;
+            if (!content || !date) return;
+            if (todoEditingId) {
+                const idx = tasks.findIndex(t => t.id === todoEditingId);
+                tasks[idx].content = content; tasks[idx].date = date;
+                cancelTodoEdit();
+            } else { tasks.push({ id: Date.now(), content, date, completed: false }); }
+            saveTodo();
+        }
+        function cancelTodoEdit() {
+            todoEditingId = null; document.getElementById('todoInput').value = ''; document.getElementById('todoDate').valueAsDate = new Date();
+            document.getElementById('todoSaveBtn').innerText = '新增'; document.getElementById('todoCancelBtn').style.display = 'none';
+        }
+        function deleteTodo(id) { if(confirm('刪除此事項？')){ tasks = tasks.filter(t=>t.id!==id); saveTodo(); } }
+        function toggleTodo(id) { const t = tasks.find(x=>x.id===id); t.completed = !t.completed; saveTodo(); }
+        function editTodo(id) {
+            const t = tasks.find(x=>x.id===id); document.getElementById('todoInput').value = t.content; document.getElementById('todoDate').value = t.date;
+            todoEditingId = id; document.getElementById('todoSaveBtn').innerText = '儲存修改'; document.getElementById('todoCancelBtn').style.display = 'block';
+            window.scrollTo({top:0, behavior:'smooth'});
+        }
+        function saveTodo() { 
+            localStorage.setItem('tasks_v4', JSON.stringify(tasks)); 
+            renderTodo(); 
+            syncToCloud(); 
+        }
+        function renderTodo() {
+            const container = document.getElementById('todo-lists-render'); container.innerHTML = '';
+            const groups = { '今日':[], '本週':[], '本月':[], '未來':[], '已完成/已過期':[] };
+            const now = new Date(); now.setHours(0,0,0,0);
+            const sun = new Date(now); sun.setDate(now.getDate() + (now.getDay()==0?0:7-now.getDay()));
+            const monthEnd = new Date(now.getFullYear(), now.getMonth()+1, 0);
+            tasks.sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(t => {
+                const d = new Date(t.date); d.setHours(0,0,0,0);
+                let g = '未來';
+                if(t.completed || d < now) g = '已完成/已過期';
+                else if(d.getTime()===now.getTime()) g = '今日';
+                else if(d<=sun) g = '本週';
+                else if(d<=monthEnd) g = '本月';
+                groups[g].push(t);
+            });
+            for(let title in groups) {
+                let html = `<div class="section-title">${title}</div><div class="list-container">`;
+                if(groups[title].length === 0) html += `<div class="item" style="color:#D1D1D6">尚無事項</div>`;
+                groups[title].forEach(t => {
+                    html += `<div class="item ${t.completed?'completed':''}"><div class="checkbox ${t.completed?'checked':''}" onclick="toggleTodo(${t.id})"></div><div class="item-info" onclick="toggleTodo(${t.id})"><div class="item-text">${t.content}</div><div class="item-sub">${t.date}</div></div><div class="action-btns"><span onclick="editTodo(${t.id})">✎</span><span onclick="deleteTodo(${t.id})">✕</span></div></div>`;
+                });
+                container.innerHTML += html + '</div>';
+            }
+        }
+
+        // --- 2. 蕃茄鐘與 3. 人生清單邏輯 ---
+        let timer = null; let isRunning = false; let isWorkMode = true; let timeLeft = 25 * 60;
+        function updateTimerDisplay() { const m = Math.floor(timeLeft / 60); const s = timeLeft % 60; document.getElementById('timerDisplay').innerText = `${m}:${s < 10 ? '0' : ''}${s}`; }
+        function toggleTimer() {
+            if (isRunning) { clearInterval(timer); document.getElementById('pomoStartBtn').innerText = '繼續'; }
+            else {
+                timer = setInterval(() => {
+                    timeLeft--; updateTimerDisplay();
+                    if (timeLeft <= 0) {
+                        clearInterval(timer); isWorkMode = !isWorkMode;
+                        timeLeft = (isWorkMode ? document.getElementById('workTimeInput').value : document.getElementById('freeTimeInput').value) * 60;
+                        document.getElementById('pomoStatus').innerText = isWorkMode ? '專注中 🔥' : '休息中 ☕';
+                        document.getElementById('pomoStatus').style.color = isWorkMode ? 'var(--pomodoro)' : 'var(--success)';
+                        toggleTimer(); if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                    }
+                }, 1000);
+                document.getElementById('pomoStartBtn').innerText = '暫停'; document.getElementById('pomoStatus').innerText = isWorkMode ? '專注中 🔥' : '休息中 ☕';
+            }
+            isRunning = !isRunning;
+        }
+        function resetTimer() {
+            clearInterval(timer); isRunning = false; isWorkMode = true; 
+            timeLeft = document.getElementById('workTimeInput').value * 60; 
+            updateTimerDisplay();
+            document.getElementById('pomoStartBtn').innerText = '開始專注'; 
+            document.getElementById('pomoStatus').innerText = '準備專注'; 
+            document.getElementById('pomoStatus').style.color = 'var(--text)';
+        }
+
+        let bucket = JSON.parse(localStorage.getItem('bucket_v1')) || []; let bucketEditId = null;
+        function handleBucketSave() {
+            const content = document.getElementById('bucketInput').value; if(!content) return;
+            if(bucketEditId) { bucket.find(x=>x.id===bucketEditId).content = content; cancelBucketEdit(); }
+            else { bucket.push({ id: Date.now(), content, completed: false }); }
+            saveBucket();
+        }
+        function cancelBucketEdit() {
+            bucketEditId = null; document.getElementById('bucketInput').value = ''; 
+            document.getElementById('bucketSaveBtn').innerText = '紀錄夢想'; 
+            document.getElementById('bucketCancelBtn').style.display = 'none'; 
+        }
+        function saveBucket() { 
+            localStorage.setItem('bucket_v1', JSON.stringify(bucket)); 
+            renderBucket(); 
+            syncToCloud(); 
+        }
+        function renderBucket() {
+            const container = document.getElementById('bucket-list-render');
+            container.innerHTML = bucket.length === 0 ? '<div class="item" style="color:#D1D1D6">開始你的冒險清單吧！</div>' : '';
+            bucket.forEach(t => {
+                container.innerHTML += `<div class="item ${t.completed?'completed':''}"><div class="checkbox ${t.completed?'checked':''}" onclick="toggleBucket(${t.id})"></div><div class="item-info" onclick="toggleBucket(${t.id})"><div class="item-text">${t.content}</div></div><div class="action-btns"><span onclick="editBucket(${t.id})">✎</span><span onclick="deleteBucket(${t.id})">✕</span></div></div>`;
+            });
+        }
+        function toggleBucket(id) { const t=bucket.find(x=>x.id===id); t.completed=!t.completed; saveBucket(); }
+        function editBucket(id) { 
+            const t=bucket.find(x=>x.id===id); 
+            document.getElementById('bucketInput').value = t.content; 
+            bucketEditId = id; 
+            document.getElementById('bucketSaveBtn').innerText = '儲存修改'; 
+            document.getElementById('bucketCancelBtn').style.display = 'block'; 
+        }
+        function deleteBucket(id) { if(confirm('刪除這項紀錄？')){ bucket=bucket.filter(x=>x.id!==id); saveBucket(); } }
+
+        // --- 初始化啟動 ---
+        renderTodo();
+        renderBucket();
+        checkSchedule();
+        if (syncConfig.binId && syncConfig.apiKey) {
+            fetchFromCloud(); 
+        }
+    </script>
+</body>
+</html>
