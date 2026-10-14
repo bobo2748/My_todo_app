@@ -197,25 +197,6 @@
         async function syncToCloud() {
             if (!syncConfig.binId || !syncConfig.apiKey) return;
             const statusEl = document.getElementById('syncStatus');
-            if(statusEl) statusEl.innerText = '⏳ 正在同步...';
-            try {
-                await fetch(`https://api.jsonbin.io/v3/b/${syncConfig.binId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': syncConfig.apiKey },
-                    body: JSON.stringify({ tasks, bucket })
-                });
-                if(statusEl) {
-                    statusEl.innerText = '✅ 雲端同步完成';
-                    setTimeout(() => statusEl.innerText = '', 3000);
-                }
-            } catch (e) {
-                if(statusEl) statusEl.innerText = '❌ 同步失敗，請檢查網路或金鑰';
-            }
-        }
-
-async function syncToCloud() {
-            if (!syncConfig.binId || !syncConfig.apiKey) return;
-            const statusEl = document.getElementById('syncStatus');
             try {
                 const res = await fetch(`https://api.jsonbin.io/v3/b/${syncConfig.binId}`, {
                     method: 'PUT',
@@ -241,7 +222,42 @@ async function syncToCloud() {
                 if(statusEl) statusEl.innerText = '❌ 同步失敗：網路異常';
             }
         }
-
+        async function fetchFromCloud() {
+            if (!syncConfig.binId || !syncConfig.apiKey) return;
+            const statusEl = document.getElementById('syncStatus');
+            if(statusEl) statusEl.innerText = '⏳ 正在從雲端載入資料...';
+            try {
+                // 【優化】加上 ?t=${Date.now()} 打破手機瀏覽器的快取，強制抓取最新資料
+                const res = await fetch(`https://api.jsonbin.io/v3/b/${syncConfig.binId}/latest?t=${Date.now()}`, {
+                    method: 'GET',
+                    headers: { 
+                        'X-Master-Key': syncConfig.apiKey,
+                        'Cache-Control': 'no-cache'
+                    },
+                    cache: 'no-store'
+                });
+                
+                const data = await res.json();
+                
+                // 【優化】嚴格檢查是否有讀取到資料
+                if (res.ok && data && data.record) {
+                    if (data.record.tasks) tasks = data.record.tasks;
+                    if (data.record.bucket) bucket = data.record.bucket;
+                    localStorage.setItem('tasks_v4', JSON.stringify(tasks));
+                    localStorage.setItem('bucket_v1', JSON.stringify(bucket));
+                    renderTodo(); 
+                    renderBucket();
+                    if(statusEl) {
+                        statusEl.innerText = '✅ 資料已與雲端同步！';
+                        setTimeout(() => statusEl.innerText = '', 3000);
+                    }
+                } else {
+                    if(statusEl) statusEl.innerText = '❌ 載入失敗：Bin ID 或 Key 有誤';
+                }
+            } catch (e) {
+                if(statusEl) statusEl.innerText = '❌ 載入失敗：網路連線異常';
+            }
+        }
         // --- 通知與排程邏輯 ---
         function requestNotification() {
             if (!("Notification" in window)) return alert("您的瀏覽器不支援通知功能");
